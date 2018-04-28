@@ -62,6 +62,7 @@ static char g_strVehicleSound[][] =
 	"vehicles/v8/skid_highfriction.wav",
 };
 
+ConVar g_hSeatMode;
 
 /**	I know it wastes a lot of space..
 [MAX_HOOK_ENTITIES] <- Vehicle Index
@@ -84,6 +85,10 @@ float g_fPlayerData[MAXPLAYERS + 1][7];
 
 public void OnPluginStart()
 {
+	CreateConVar("sm_tf2vehicle_version", PLUGIN_VERSION, "", FCVAR_SPONLY | FCVAR_NOTIFY);
+	
+	g_hSeatMode = CreateConVar("sm_tf2vehicle_seatmode", "0", "0 = Teleport the player to seat pos, 1 = Set parent to the player on seat (Not stable)", FCVAR_SPONLY | FCVAR_NOTIFY);
+	
 	RegAdminCmd("sm_veh", 	  Command_SpawnVehicle, 0, "Spawn Vehicle in TF2!");
 	RegAdminCmd("sm_vehicle", Command_SpawnVehicle, 0, "Spawn Vehicle in TF2!");
 	
@@ -479,8 +484,9 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				
 				for (int i = 0; i <= 2; i++)	StopSound(iVehicle, SNDCHAN_AUTO, g_strVehicleSound[i]);
 			}	
-			//
-			//TeleportEntity(client, TF2_GetVehicleSeatPosition(iVehicle, iSeatNum), NULL_VECTOR, NULL_VECTOR);
+			
+			if(g_hSeatMode.IntValue == 0)
+				TeleportEntity(client, TF2_GetVehicleSeatPosition(iVehicle, iSeatNum), NULL_VECTOR, NULL_VECTOR);
 		}
 		else
 		{
@@ -670,25 +676,30 @@ void TF2_SetClientEnterSeat(int client, int entity, int seatNum)
 		AcceptEntityInput(entity, "EnableDamageForces");
 	}
 	
-	float Seatpos[3];
-	Seatpos = TF2_GetVehicleSeatPosition(entity, seatNum);
-	Seatpos[2] += g_fPlayerData[client][6];
 	
-	int Seat = CreateEntityByName("info_target");
-	if (Seat > MaxClients && IsValidEntity(Seat))
+	if(g_hSeatMode.IntValue == 1)
 	{
-		DispatchSpawn(Seat);
-		SetEntPropVector(Seat, Prop_Send, "m_vecOrigin", Seatpos);
-
+		float Seatpos[3];
+		Seatpos = TF2_GetVehicleSeatPosition(entity, seatNum);
+		Seatpos[2] += g_fPlayerData[client][6];
+		
+		int Seat = CreateEntityByName("info_target");
+		if (Seat > MaxClients && IsValidEntity(Seat))
+		{
+			DispatchSpawn(Seat);
+			SetEntPropVector(Seat, Prop_Send, "m_vecOrigin", Seatpos);
+	
+			SetVariantString("!activator"); 
+			AcceptEntityInput(Seat, "SetParent", entity);
+		}
+		
+		SetEntPropVector(client, Prop_Send, "m_vecOrigin", Seatpos);
 		SetVariantString("!activator"); 
-		AcceptEntityInput(Seat, "SetParent", entity);
+		AcceptEntityInput(client, "SetParent", Seat);
+		
+		g_iPlayerInVehicle[client][2] = EntIndexToEntRef(Seat);
 	}
 	
-	SetEntPropVector(client, Prop_Send, "m_vecOrigin", Seatpos);
-	SetVariantString("!activator"); 
-	AcceptEntityInput(client, "SetParent", Seat);
-	
-	g_iPlayerInVehicle[client][2] = EntIndexToEntRef(Seat);
 	g_fPlayerData[client][0] = 0.0;
 }
 
