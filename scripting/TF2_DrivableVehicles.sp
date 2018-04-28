@@ -89,8 +89,8 @@ public void OnPluginStart()
 	
 	RegAdminCmd("sm_vehmenu", Command_VehicleMenu, 0, "Vehicle Menu!");
 	
-	//RegAdminCmd("sm_delveh", Command_SpawnVehicle, 0, "Spawn Vehicle in TF2!");
-	//RegAdminCmd("sm_delvehicleall", Command_SpawnVehicle, 0, "Spawn Vehicle in TF2!");
+	RegAdminCmd("sm_delveh", Command_RemoveVehicle, 0, "Remove Aiming Vehicle");
+	RegAdminCmd("sm_delvehall", Command_RemoveVehicleAll, 0, "Remove All Vehicle");
 	
 	HookEvent("player_death", Event_PlayerDeath, EventHookMode_Post);
 }
@@ -128,6 +128,39 @@ public Action Command_SpawnVehicle(int client, int args)
 	}
 	
 	CPrintToChat(client, "[SM] Usage: sm_vehicle <1-3>");
+	
+	return Plugin_Continue;
+}
+
+public Action Command_RemoveVehicle(int client, int args)
+{
+	if(IsValidClient(client))
+	{
+		int iEntity = GetClientAimEntity(client);
+		if(TF2_IsEntityVehicle(iEntity))
+		{
+			AcceptEntityInput(iEntity, "Kill");
+			PrintToChat(client, "[Vehicle] Removed Vehicle %i", iEntity);
+		}
+		else PrintToChat(client, "[Vehicle] Not a Valid Vehicle");
+	}
+	
+	return Plugin_Continue;
+}
+
+public Action Command_RemoveVehicleAll(int client, int args)
+{
+	int iCount;
+	int index = -1;
+	while ((index = FindEntityByClassname(index, "prop_physics")) != -1)
+	{
+		if (TF2_IsEntityVehicle(index))
+		{	
+			AcceptEntityInput(index, "Kill");
+			iCount++;
+		}
+	}
+	PrintToChat(client, "[Vehicle] Removed %i Vehicles successfully!", iCount);
 	
 	return Plugin_Continue;
 }
@@ -802,10 +835,57 @@ public bool tracerayfilterrocket(int entity, int mask, any data)
 	return true;	
 }
 
+stock int GetClientAimEntity(int client)
+{
+	float fOrigin[3], fAngles[3];
+	GetClientEyePosition(client, fOrigin);
+	GetClientEyeAngles(client, fAngles);
+	
+	Handle trace = TR_TraceRayFilterEx(fOrigin, fAngles, MASK_SOLID, RayType_Infinite, TraceEntityFilter, client);
+
+	if (TR_DidHit(trace)) 
+	{	
+		int iEntity = TR_GetEntityIndex(trace);
+		if(iEntity > 0 && IsValidEntity(iEntity))
+		{
+			CloseHandle(trace);
+			return iEntity;
+		}
+	}
+	CloseHandle(trace);
+	return -1;
+}
+public bool TraceEntityFilter(int entity, int mask, any data) 
+{
+	return data != entity;
+}
+
+
 void AnglesNormalize(float vAngles[3])
 {
 	while (vAngles[0] > 89.0)vAngles[0] -= 360.0;
 	while (vAngles[0] < -89.0)vAngles[0] += 360.0;
 	while (vAngles[1] > 180.0)vAngles[1] -= 360.0;
 	while (vAngles[1] < -180.0)vAngles[1] += 360.0;
+}
+
+
+
+
+/**
+		Pelipoika Area
+*/
+//https://github.com/Pelipoika/The-unfinished-and-abandoned/blob/master/triggerbot.sp
+float[] VelocityExtrapolate(int entity, float pos[3])		
+{
+	float absVel[3];		
+	GetEntPropVector(entity, Prop_Data, "m_vecVelocity", absVel);		
+	
+	float v[3];		
+	
+	v[0] = pos[0] + (absVel[0] * GetTickInterval());		
+	v[1] = pos[1] + (absVel[1] * GetTickInterval());		
+	v[2] = pos[2] + (absVel[2] * GetTickInterval());		
+	
+	return v;		
 }
